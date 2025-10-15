@@ -7,11 +7,11 @@ throughout your application.
 
 ## Features
 
-* ✅ Shell-safe command construction for `lp` (default) or `lpr`.
-* ✅ Simple option struct for destination, copies, title, and arbitrary
+* Shell-safe command construction for `lp` (default) or `lpr`.
+* Simple option struct for destination, copies, title, and arbitrary
   `-o key=value` job options.
-* ✅ Ability to print raw text (written to a temp file) or an existing file.
-* ✅ Optional integration tests that exercise real printers when the required
+* Ability to print raw text (written to a temp file) or an existing file.
+* Optional integration tests that exercise real printers when the required
   commands are available.
 
 ## Supported Platforms
