@@ -3,7 +3,7 @@ name = "drucker"
 version = "0.1.0"
 edition = "2024"
 
-authors = ["Ron Friedhaber <none@example.com>"]
+authors = ["Ron Friedhaber <ronfriedhaber@users.noreply.github.com>"]
 description = "A Rust Library For Interfacing With Hardware Printers On POSIX Machines"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ronfriedhaber/drucker"
