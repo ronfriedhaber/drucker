@@ -41,6 +41,91 @@ impl Default for DruckerOptions {
     }
 }
 
+impl DruckerOptions {
+    /// Start building [`DruckerOptions`] using the builder pattern.
+    pub fn builder() -> DruckerOptionsBuilder {
+        DruckerOptionsBuilder {
+            options: Self::default(),
+        }
+    }
+}
+
+/// Builder for [`DruckerOptions`].
+pub struct DruckerOptionsBuilder {
+    options: DruckerOptions,
+}
+
+impl DruckerOptionsBuilder {
+    /// Set the destination printer name.
+    pub fn destination<T: Into<String>>(mut self, destination: T) -> Self {
+        self.options.destination = Some(destination.into());
+        self
+    }
+
+    /// Set the destination printer from an optional value.
+    pub fn destination_if<T: Into<String>>(mut self, destination: Option<T>) -> Self {
+        self.options.destination = destination.map(Into::into);
+        self
+    }
+
+    /// Clear any previously set destination printer.
+    pub fn clear_destination(mut self) -> Self {
+        self.options.destination = None;
+        self
+    }
+
+    /// Set the number of copies to print.
+    pub fn copies(mut self, copies: u32) -> Self {
+        self.options.copies = Some(copies);
+        self
+    }
+
+    /// Clear any previously set copies value.
+    pub fn clear_copies(mut self) -> Self {
+        self.options.copies = None;
+        self
+    }
+
+    /// Set the job title.
+    pub fn title<T: Into<String>>(mut self, title: T) -> Self {
+        self.options.title = Some(title.into());
+        self
+    }
+
+    /// Clear any previously set job title.
+    pub fn clear_title(mut self) -> Self {
+        self.options.title = None;
+        self
+    }
+
+    /// Replace the entire set of job options.
+    pub fn job_options(mut self, job_options: BTreeMap<String, String>) -> Self {
+        self.options.job_options = job_options;
+        self
+    }
+
+    /// Insert or replace a single job option key/value pair.
+    pub fn job_option<K, V>(mut self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.options.job_options.insert(key.into(), value.into());
+        self
+    }
+
+    /// Configure whether to use `lpr` instead of `lp`.
+    pub fn use_lpr(mut self, use_lpr: bool) -> Self {
+        self.options.use_lpr = use_lpr;
+        self
+    }
+
+    /// Finish building and return the [`DruckerOptions`].
+    pub fn build(self) -> DruckerOptions {
+        self.options
+    }
+}
+
 /// Print content variants: raw text or a file path.
 pub enum DruckerContent {
     /// Print a text string (written to a temp file internally).
@@ -58,6 +143,11 @@ pub struct Drucker {
 }
 
 impl Drucker {
+    /// Create a new [`Drucker`] print job from `content` and `options`.
+    pub fn new(content: DruckerContent, options: DruckerOptions) -> Self {
+        Self { options, content }
+    }
+
     /// Execute the print job using `lp` (or `lpr` if configured).
     ///
     /// Returns `Ok(())` on success (exit code 0), otherwise `Err(())`.
@@ -229,10 +319,10 @@ mod tests {
     fn build_command_lp_with_file() {
         let temp_pdf = make_temp_file_with("%PDF-1.4\n", "pdf");
 
-        let drucker = Drucker {
-            options: DruckerOptions::default(),
-            content: DruckerContent::File(temp_pdf.clone()),
-        };
+        let drucker = Drucker::new(
+            DruckerContent::File(temp_pdf.clone()),
+            DruckerOptions::default(),
+        );
 
         let cmd = drucker.build_command().expect("build ok");
         println!("lp file cmd: {cmd}");
@@ -246,18 +336,15 @@ mod tests {
     fn build_command_lpr_with_options_and_escaping() {
         let temp_txt = make_temp_file_with("hello", "txt");
 
-        let mut opts = DruckerOptions::default();
-        opts.use_lpr = true;
-        opts.destination = Some("Office Printer".into());
-        opts.copies = Some(2);
-        opts.title = Some("Q2 'Report'".into());
-        opts.job_options
-            .insert("sides".into(), "two-sided-long-edge".into());
+        let opts = DruckerOptions::builder()
+            .use_lpr(true)
+            .destination("Office Printer")
+            .copies(2)
+            .title("Q2 'Report'")
+            .job_option("sides", "two-sided-long-edge")
+            .build();
 
-        let drucker = Drucker {
-            options: opts,
-            content: DruckerContent::File(temp_txt.clone()),
-        };
+        let drucker = Drucker::new(DruckerContent::File(temp_txt.clone()), opts);
 
         let cmd = drucker.build_command().expect("build ok");
         println!("lpr file cmd: {cmd}");
@@ -286,10 +373,10 @@ mod tests {
     fn build_command_with_text_creates_tempfile_and_writes_contents() {
         let text = "Hello 'quoted'\nLine 2";
 
-        let drucker = Drucker {
-            options: DruckerOptions::default(),
-            content: DruckerContent::Text(text.to_string()),
-        };
+        let drucker = Drucker::new(
+            DruckerContent::Text(text.to_string()),
+            DruckerOptions::default(),
+        );
 
         let cmd = drucker.build_command().expect("build ok");
         println!("lp text cmd: {cmd}");
@@ -303,6 +390,26 @@ mod tests {
         assert_eq!(body, text);
 
         let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn options_builder_sets_expected_fields() {
+        let opts = DruckerOptions::builder()
+            .destination("Floor1")
+            .copies(3)
+            .title("Quarterly Report")
+            .job_option("media", "na_letter_8.5x11in")
+            .use_lpr(true)
+            .build();
+
+        assert_eq!(opts.destination.as_deref(), Some("Floor1"));
+        assert_eq!(opts.copies, Some(3));
+        assert_eq!(opts.title.as_deref(), Some("Quarterly Report"));
+        assert_eq!(
+            opts.job_options.get("media"),
+            Some(&"na_letter_8.5x11in".to_string())
+        );
+        assert!(opts.use_lpr);
     }
 
     #[test]
@@ -336,10 +443,9 @@ mod tests {
             return;
         }
 
-        let mut opts = DruckerOptions::default();
-        if let Some(p) = integration_printer() {
-            opts.destination = Some(p);
-        }
+        let opts = DruckerOptions::builder()
+            .destination_if(integration_printer())
+            .build();
 
         let txt = format!(
             "Drucker integration test (lp)\nEpoch us: {}\n",
@@ -349,10 +455,7 @@ mod tests {
                 .as_micros()
         );
 
-        let drucker = Drucker {
-            options: opts,
-            content: DruckerContent::Text(txt),
-        };
+        let drucker = Drucker::new(DruckerContent::Text(txt), opts);
 
         println!(
             "about to print via `lp`… opts: dest={:?}",
@@ -374,22 +477,17 @@ mod tests {
             return;
         }
 
-        let mut opts = DruckerOptions::default();
-        opts.use_lpr = true;
-        if let Some(p) = integration_printer() {
-            opts.destination = Some(p);
-        }
-        opts.copies = Some(1);
-        opts.title = Some("Drucker Integration".into());
-        opts.job_options
-            .insert("media".into(), "na_letter_8.5x11in".into());
+        let opts = DruckerOptions::builder()
+            .use_lpr(true)
+            .destination_if(integration_printer())
+            .copies(1)
+            .title("Drucker Integration")
+            .job_option("media", "na_letter_8.5x11in")
+            .build();
 
         let path = make_temp_file_with("Hello from lpr integration\n", "txt");
 
-        let drucker = Drucker {
-            options: opts,
-            content: DruckerContent::File(path.clone()),
-        };
+        let drucker = Drucker::new(DruckerContent::File(path.clone()), opts);
 
         println!(
             "about to print via `lpr`… dest={:?} file={:?}",
@@ -409,15 +507,11 @@ mod tests {
         }
 
         let path = make_temp_file_with("Roundtrip file body\n", "txt");
-        let mut opts = DruckerOptions::default();
-        if let Some(p) = integration_printer() {
-            opts.destination = Some(p);
-        }
+        let opts = DruckerOptions::builder()
+            .destination_if(integration_printer())
+            .build();
 
-        let drucker = Drucker {
-            options: opts,
-            content: DruckerContent::File(path.clone()),
-        };
+        let drucker = Drucker::new(DruckerContent::File(path.clone()), opts);
 
         let cmd = drucker.build_command().expect("build ok");
         println!("lp actual submit cmd: {cmd}");
