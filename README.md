@@ -1,18 +1,15 @@
 # Drucker
 
 `drucker` is a tiny Rust helper crate that builds safe command lines for
-[`lp`](https://www.cups.org/doc/options.html) / `lpr` so that you can send text or
-files to a CUPS compatible printer without sprinkling shell escaping logic
-throughout your application.
+[`lp`](https://www.cups.org/doc/options.html) and `lpr`, letting you send text or
+files to a CUPS compatible printer without hand-written shell escaping.
 
 ## Features
 
 * Shell-safe command construction for `lp` (default) or `lpr`.
-* Simple option struct for destination, copies, title, and arbitrary
+* Simple `DruckerOptions` builder for destination, copies, title, and arbitrary
   `-o key=value` job options.
-* Ability to print raw text (written to a temp file) or an existing file.
-* Optional integration tests that exercise real printers when the required
-  commands are available.
+* Print raw text (written to a temp file) or an existing file path.
 
 ## Supported Platforms
 
@@ -28,15 +25,12 @@ Add `drucker` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-drucker = { path = "../drucker" }
+drucker = "0.1"
 ```
-
-> **Note**: The crate is not yet published on crates.io. Use a path or git
-> dependency until it is released.
 
 ## Quick start
 
-Print a text receipt to your default printer:
+Print a text receipt to your default printer with the safe `lp` defaults:
 
 ```rust
 use drucker::lp::{Drucker, DruckerContent, DruckerOptions};
@@ -53,8 +47,8 @@ fn main() -> Result<(), ()> {
 }
 ```
 
-Target a specific printer with additional options while printing an existing
-file:
+Switch to `lpr`, target a specific printer, and print an existing PDF using the
+builder API:
 
 ```rust
 use std::path::PathBuf;
@@ -62,11 +56,13 @@ use std::path::PathBuf;
 use drucker::lp::{Drucker, DruckerContent, DruckerOptions};
 
 fn print_pdf() -> Result<(), ()> {
-    let mut options = DruckerOptions::default();
-    options.destination = Some("Office-Color".into());
-    options.copies = Some(2);
-    options.title = Some("Quarterly Summary".into());
-    options.job_options.insert("sides".into(), "two-sided-long-edge".into());
+    let options = DruckerOptions::builder()
+        .use_lpr(true)
+        .destination("Office-Color")
+        .copies(2)
+        .title("Quarterly Summary")
+        .job_option("sides", "two-sided-long-edge")
+        .build();
 
     let job = Drucker {
         options,
