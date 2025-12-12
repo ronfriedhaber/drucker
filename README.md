@@ -38,12 +38,9 @@ use drucker::lp::{Drucker, DruckerContent, DruckerOptions};
 fn main() -> Result<(), ()> {
     let receipt = "Order #123\nTotal: $42.00\n";
 
-    let job = Drucker {
-        options: DruckerOptions::default(),
-        content: DruckerContent::Text(receipt.into()),
-    };
+    let drucker = Drucker::new(DruckerOptions::default());
 
-    job.print()
+    drucker.print(DruckerContent::Text(receipt.into()))
 }
 ```
 
@@ -64,13 +61,22 @@ fn print_pdf() -> Result<(), ()> {
         .job_option("sides", "two-sided-long-edge")
         .build();
 
-    let job = Drucker {
-        options,
-        content: DruckerContent::File(PathBuf::from("reports/q2.pdf")),
-    };
+    let drucker = Drucker::new(options);
 
-    job.print()
+    drucker.print(DruckerContent::File(PathBuf::from("reports/q2.pdf")))
 }
+
+Keep the same `drucker` handle around if you want to send multiple jobs with
+identical options:
+
+```rust
+fn batch() -> Result<(), ()> {
+    let drucker = Drucker::new(DruckerOptions::default());
+    drucker.print(DruckerContent::Text("first".into()))?;
+    drucker.print(DruckerContent::Text("second".into()))?;
+    Ok(())
+}
+```
 ```
 
 Under the hood the crate builds a single POSIX-shell-safe command string and

@@ -1,13 +1,3 @@
-//! Minimal CUPS/LP wrapper for printing text or files from Rust.
-//!
-//! # Overview
-//! `Drucker` builds a shell-safe command for `lp` (or `lpr`) and executes it.
-//! It supports destination, copies, title, and arbitrary `-o key=value` job options.
-//!
-//! # Safety
-//! Arguments are POSIX-shell-escaped using single-quote strategy. Text content is
-//! written to a temp file and that path is passed to the print command.
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
@@ -134,25 +124,23 @@ pub enum DruckerContent {
     File(PathBuf),
 }
 
-/// A print job consisting of options and content.
+/// Handle that stores printer options and can submit multiple jobs.
 pub struct Drucker {
     /// CUPS/LP options that control the job.
     pub options: DruckerOptions,
-    /// The content to print.
-    pub content: DruckerContent,
 }
 
 impl Drucker {
-    /// Create a new [`Drucker`] print job from `content` and `options`.
-    pub fn new(content: DruckerContent, options: DruckerOptions) -> Self {
-        Self { options, content }
+    /// Create a new [`Drucker`] configured with the provided options.
+    pub fn new(options: DruckerOptions) -> Self {
+        Self { options }
     }
 
-    /// Execute the print job using `lp` (or `lpr` if configured).
+    /// Execute a print job using `lp` (or `lpr` if configured).
     ///
     /// Returns `Ok(())` on success (exit code 0), otherwise `Err(())`.
-    pub fn print(self) -> Result<(), ()> {
-        let cmd = self.build_command()?;
+    pub fn print(&self, content: DruckerContent) -> Result<(), ()> {
+        let cmd = self.build_command(&content)?;
         let status = Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -164,7 +152,7 @@ impl Drucker {
     /// Build a full shell-safe command line string to submit the job.
     ///
     /// For [`DruckerContent::Text`], this writes a temp file and targets that path.
-    fn build_command(&self) -> Result<String, ()> {
+    fn build_command(&self, content: &DruckerContent) -> Result<String, ()> {
         let mut base = if self.options.use_lpr {
             String::from("lpr")
         } else {
@@ -210,7 +198,7 @@ impl Drucker {
             base.push_str(v);
         }
 
-        let file_arg = match &self.content {
+        let file_arg = match content {
             DruckerContent::File(p) => {
                 if p.as_os_str().is_empty() {
                     return Err(());
@@ -319,12 +307,10 @@ mod tests {
     fn build_command_lp_with_file() {
         let temp_pdf = make_temp_file_with("%PDF-1.4\n", "pdf");
 
-        let drucker = Drucker::new(
-            DruckerContent::File(temp_pdf.clone()),
-            DruckerOptions::default(),
-        );
+        let drucker = Drucker::new(DruckerOptions::default());
+        let content = DruckerContent::File(temp_pdf.clone());
 
-        let cmd = drucker.build_command().expect("build ok");
+        let cmd = drucker.build_command(&content).expect("build ok");
         println!("lp file cmd: {cmd}");
         assert!(cmd.starts_with("lp "), "expected lp command, got: {cmd}");
 
@@ -344,9 +330,10 @@ mod tests {
             .job_option("sides", "two-sided-long-edge")
             .build();
 
-        let drucker = Drucker::new(DruckerContent::File(temp_txt.clone()), opts);
+        let drucker = Drucker::new(opts);
+        let content = DruckerContent::File(temp_txt.clone());
 
-        let cmd = drucker.build_command().expect("build ok");
+        let cmd = drucker.build_command(&content).expect("build ok");
         println!("lpr file cmd: {cmd}");
 
         assert!(cmd.starts_with("lpr "), "expected lpr: {cmd}");
@@ -373,12 +360,10 @@ mod tests {
     fn build_command_with_text_creates_tempfile_and_writes_contents() {
         let text = "Hello 'quoted'\nLine 2";
 
-        let drucker = Drucker::new(
-            DruckerContent::Text(text.to_string()),
-            DruckerOptions::default(),
-        );
+        let drucker = Drucker::new(DruckerOptions::default());
+        let content = DruckerContent::Text(text.to_string());
 
-        let cmd = drucker.build_command().expect("build ok");
+        let cmd = drucker.build_command(&content).expect("build ok");
         println!("lp text cmd: {cmd}");
         assert!(cmd.starts_with("lp "), "expected lp by default: {cmd}");
 
@@ -455,13 +440,15 @@ mod tests {
                 .as_micros()
         );
 
-        let drucker = Drucker::new(DruckerContent::Text(txt), opts);
+        let drucker = Drucker::new(opts);
 
         println!(
             "about to print via `lp`… opts: dest={:?}",
             drucker.options.destination
         );
-        drucker.print().expect("lp print should succeed");
+        drucker
+            .print(DruckerContent::Text(txt))
+            .expect("lp print should succeed");
         println!("lp print dispatched OK");
     }
 
@@ -487,13 +474,15 @@ mod tests {
 
         let path = make_temp_file_with("Hello from lpr integration\n", "txt");
 
-        let drucker = Drucker::new(DruckerContent::File(path.clone()), opts);
+        let drucker = Drucker::new(opts);
 
         println!(
             "about to print via `lpr`… dest={:?} file={:?}",
             drucker.options.destination, path
         );
-        drucker.print().expect("lpr print should succeed");
+        drucker
+            .print(DruckerContent::File(path.clone()))
+            .expect("lpr print should succeed");
         println!("lpr print dispatched OK");
     }
 
@@ -511,11 +500,14 @@ mod tests {
             .destination_if(integration_printer())
             .build();
 
-        let drucker = Drucker::new(DruckerContent::File(path.clone()), opts);
+        let drucker = Drucker::new(opts);
 
-        let cmd = drucker.build_command().expect("build ok");
+        let content = DruckerContent::File(path.clone());
+        let cmd = drucker.build_command(&content).expect("build ok");
         println!("lp actual submit cmd: {cmd}");
-        drucker.print().expect("lp submit ok");
+        drucker
+            .print(DruckerContent::File(path.clone()))
+            .expect("lp submit ok");
 
         assert!(path.exists(), "source file should remain after submission");
         let _ = fs::remove_file(path);
