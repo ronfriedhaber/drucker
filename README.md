@@ -1,15 +1,6 @@
 # Drucker
 
-`drucker` is a tiny Rust helper crate that builds safe command lines for
-[`lp`](https://www.cups.org/doc/options.html) and `lpr`, letting you send text or
-files to a CUPS compatible printer without hand-written shell escaping.
-
-## Features
-
-* Shell-safe command construction for `lp` (default) or `lpr`.
-* Simple `DruckerOptions` builder for destination, copies, title, and arbitrary
-  `-o key=value` job options.
-* Print raw text (written to a temp file) or an existing file path.
+A Rust Library For Interfacing With Hardware Printers On POSIX Machines.
 
 ## Supported Platforms
 
@@ -77,34 +68,3 @@ fn batch() -> Result<(), ()> {
     Ok(())
 }
 ```
-```
-
-Under the hood the crate builds a single POSIX-shell-safe command string and
-spawns `sh -c ...`, so *no* `unsafe` blocks or raw command string concatenation
-are required in your code.
-
-## Running the tests
-
-Unit tests run purely offline:
-
-```bash
-cargo test
-```
-
-There are also ignored integration tests that submit real jobs via `lp` and
-`lpr`. To opt in, export the printer you want to hit and run tests with
-`--ignored`:
-
-```bash
-export DRUCKER_PRINTER="YourPrinter"
-cargo test -- --ignored --nocapture
-```
-
-If `DRUCKER_PRINTER` is not set, the tests fall back to the `PRINTER`
-environment variable or let CUPS choose the default destination.
-
-## Contributing
-
-Issues and pull requests are welcome! If you have success (or trouble) on a
-platform not listed above, please share your findings so we can document and
-improve support.
