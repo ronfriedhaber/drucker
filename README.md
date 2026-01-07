@@ -24,7 +24,7 @@ drucker = "0.1"
 Print a text receipt to your default printer with the safe `lp` defaults:
 
 ```rust
-use drucker::lp::{Drucker, DruckerContent, DruckerOptions};
+use drucker::{Drucker, DruckerContent, DruckerOptions};
 
 fn main() -> Result<(), ()> {
     let receipt = "Order #123\nTotal: $42.00\n";
@@ -35,13 +35,10 @@ fn main() -> Result<(), ()> {
 }
 ```
 
-Switch to `lpr`, target a specific printer, and print an existing PDF using the
-builder API:
-
 ```rust
 use std::path::PathBuf;
 
-use drucker::lp::{Drucker, DruckerContent, DruckerOptions};
+use drucker::{Drucker, DruckerContent, DruckerOptions};
 
 fn print_pdf() -> Result<(), ()> {
     let options = DruckerOptions::builder()
@@ -57,14 +54,4 @@ fn print_pdf() -> Result<(), ()> {
     drucker.print(DruckerContent::File(PathBuf::from("reports/q2.pdf")))
 }
 
-Keep the same `drucker` handle around if you want to send multiple jobs with
-identical options:
-
-```rust
-fn batch() -> Result<(), ()> {
-    let drucker = Drucker::new(DruckerOptions::default());
-    drucker.print(DruckerContent::Text("first".into()))?;
-    drucker.print(DruckerContent::Text("second".into()))?;
-    Ok(())
-}
-```
+``
